@@ -123,8 +123,14 @@ final class EditorDocument: NSDocument {
   func saveContent(sender: Any? = nil, userInitiated: Bool = false, completion: (() -> Void)? = nil) {
     Task { @MainActor in
       let saveAction = {
-        super.save(sender)
-        completion?()
+        DispatchQueue.main.async {
+          super.save(sender)
+          completion?()
+        }
+
+        if sender != nil {
+          self.hostViewController?.cancelCompletion()
+        }
       }
 
       if isOutdated || (userInitiated && needsFormatting) {
@@ -213,11 +219,13 @@ extension EditorDocument {
     }()
 
     let canClose = {
-      super.canClose(
-        withDelegate: delegate,
-        shouldClose: shouldClose,
-        contextInfo: contextInfo
-      )
+      DispatchQueue.main.asyncAfter(deadline: .now() + 0.02) {
+        super.canClose(
+          withDelegate: delegate,
+          shouldClose: shouldClose,
+          contextInfo: contextInfo
+        )
+      }
     }
 
     // Closing a new document, force sync to make sure the content is propagated.
