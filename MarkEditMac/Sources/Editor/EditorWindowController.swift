@@ -66,6 +66,20 @@ final class EditorWindowController: NSWindowController, NSWindowDelegate {
 
   func windowWillClose(_ notification: Notification) {
     editorViewController?.clearEditor()
+
+    guard AppRuntimeConfig.quitsAfterLastWindowClosed else {
+      return
+    }
+
+    DispatchQueue.main.async {
+      let hasVisibleEditorWindow = NSApp.windows.contains { window in
+        window !== self.window && window is EditorWindow && window.isVisible
+      }
+
+      if !hasVisibleEditorWindow {
+        NSApp.terminate(nil)
+      }
+    }
   }
 }
 
