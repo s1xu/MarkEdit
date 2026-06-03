@@ -1,8 +1,17 @@
 <img src="./Icon.png" width="96">
 
-# MarkEdit
+# MarkEdit macOS 14 Fork
 
-[![](https://img.shields.io/badge/Platform-macOS_14.0+-blue?color=007bff)](https://github.com/MarkEdit-app/MarkEdit/releases/latest) [![](https://github.com/MarkEdit-app/MarkEdit/actions/workflows/build-and-test.yml/badge.svg?branch=main)](https://github.com/MarkEdit-app/MarkEdit/actions/workflows/build-and-test.yml)
+[![](https://img.shields.io/badge/Fork-macOS_14_maintenance-orange)](FORK.md) [![](https://img.shields.io/badge/Platform-macOS_14.0+-blue?color=007bff)](https://github.com/MarkEdit-app/MarkEdit/releases/latest) [![](https://github.com/MarkEdit-app/MarkEdit/actions/workflows/build-and-test.yml/badge.svg?branch=main)](https://github.com/MarkEdit-app/MarkEdit/actions/workflows/build-and-test.yml)
+
+## macOS 14 Fork
+
+This fork maintains a macOS 14-compatible build on the `macos14` branch.
+
+- Stable branch: `macos14`
+- Upstream-tracking branch: `main`
+- Upstream project: <https://github.com/MarkEdit-app/MarkEdit>
+- Details: [FORK.md](FORK.md)
 
 MarkEdit is a free and **open-source** Markdown editor, for macOS. It's just like _TextEdit_ on Mac but dedicated to `Markdown`.
 
