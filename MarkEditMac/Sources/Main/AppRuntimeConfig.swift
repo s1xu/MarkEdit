@@ -33,6 +33,7 @@ enum AppRuntimeConfig {
     let defaultOpenDirectory: String?
     let defaultSaveDirectory: String?
     let disableCorsRestrictions: Bool?
+    let quitsAfterLastWindowClosed: Bool?
     let mainWindowHotKey: HotKey?
 
     enum CodingKeys: String, CodingKey {
@@ -50,6 +51,7 @@ enum AppRuntimeConfig {
       case defaultOpenDirectory = "general.defaultOpenDirectory"
       case defaultSaveDirectory = "general.defaultSaveDirectory"
       case disableCorsRestrictions = "general.disableCorsRestrictions"
+      case quitsAfterLastWindowClosed = "general.quitsAfterLastWindowClosed"
       case mainWindowHotKey = "general.mainWindowHotKey"
     }
   }
@@ -141,6 +143,11 @@ enum AppRuntimeConfig {
     currentDefinition?.disableCorsRestrictions ?? false
   }
 
+  static var quitsAfterLastWindowClosed: Bool {
+    // Keep the app running after the last editor window is closed by default
+    currentDefinition?.quitsAfterLastWindowClosed ?? false
+  }
+
   static var mainWindowHotKey: Definition.HotKey? {
     // Shift-Command-Option-M by default
     currentDefinition?.mainWindowHotKey
@@ -174,6 +181,7 @@ private extension AppRuntimeConfig {
     defaultOpenDirectory: nil,
     defaultSaveDirectory: nil,
     disableCorsRestrictions: nil,
+    quitsAfterLastWindowClosed: nil,
     mainWindowHotKey: .init(key: "M", modifiers: ["Shift", "Command", "Option"])
   )
 
