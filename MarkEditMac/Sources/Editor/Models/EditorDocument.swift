@@ -105,7 +105,7 @@ final class EditorDocument: NSDocument {
     addWindowController(windowController)
   }
 
-  func waitUntilSaveCompleted(userInitiated: Bool = false, delay: TimeInterval = 0.5) async {
+  func waitUntilSaveCompleted(userInitiated: Bool = false, delay: TimeInterval = 0.6) async {
     await withCheckedContinuation { continuation in
       saveContent(userInitiated: userInitiated) {
         continuation.resume()
@@ -121,26 +121,26 @@ final class EditorDocument: NSDocument {
   }
 
   func saveContent(sender: Any? = nil, userInitiated: Bool = false, completion: (() -> Void)? = nil) {
-    let saveAction = {
-      DispatchQueue.main.async {
+    Task { @MainActor in
+      let saveAction = {
         super.save(sender)
         completion?()
       }
 
-      if sender != nil {
-        self.hostViewController?.cancelCompletion()
-      }
-    }
+      if isOutdated || (userInitiated && needsFormatting) {
+        updateContent(userInitiated: userInitiated, saveAction: saveAction)
+      } else {
+        saveAction()
 
-    if isOutdated || (userInitiated && !formatCompleted) {
-      updateContent(userInitiated: userInitiated, saveAction: saveAction)
-    } else {
-      saveAction()
+        if userInitiated {
+          markContentClean()
+        }
+      }
     }
   }
 
   func updateContent(userInitiated: Bool = false, saveAction: @escaping (() -> Void) = {}) {
-    Task {
+    Task { @MainActor in
       await updateContent(userInitiated: userInitiated)
       saveAction()
     }
@@ -196,7 +196,6 @@ extension EditorDocument {
   override func updateChangeCount(_ change: NSDocument.ChangeType) {
     // The "Edited" label is hidden when changes are saved periodically
     super.updateChangeCount(shouldSaveWhenIdle ? .changeCleared : change)
-    isOutdated = change != .changeCleared
   }
 
   override func canAsynchronouslyWrite(to url: URL, ofType typeName: String, for saveOperation: NSDocument.SaveOperationType) -> Bool {
@@ -214,14 +213,11 @@ extension EditorDocument {
     }()
 
     let canClose = {
-      // Run async to work around a rare hang issue
-      DispatchQueue.main.async {
-        super.canClose(
-          withDelegate: delegate,
-          shouldClose: shouldClose,
-          contextInfo: contextInfo
-        )
-      }
+      super.canClose(
+        withDelegate: delegate,
+        shouldClose: shouldClose,
+        contextInfo: contextInfo
+      )
     }
 
     // Closing a new document, force sync to make sure the content is propagated.
@@ -240,7 +236,9 @@ extension EditorDocument {
     }
 
     // General cases
-    canClose()
+    Task { @MainActor in
+      canClose()
+    }
   }
 
   override func close() {
@@ -347,7 +345,7 @@ extension EditorDocument {
       return
     }
 
-    Task {
+    Task { @MainActor in
       try await super.autosave(withImplicitCancellability: implicitlyCancellable)
     }
   }
@@ -585,6 +583,14 @@ private extension EditorDocument {
     Date.now.timeIntervalSince(revertedDate) < 1
   }
 
+  var needsFormatting: Bool {
+    guard !formatCompleted else {
+      return false
+    }
+
+    return AppPreferences.Assistant.insertFinalNewline || AppPreferences.Assistant.trimTrailingWhitespace
+  }
+
   func updateContent(userInitiated: Bool = false) async {
     let insertFinalNewline = AppPreferences.Assistant.insertFinalNewline
     let trimTrailingWhitespace = AppPreferences.Assistant.trimTrailingWhitespace
@@ -613,8 +619,12 @@ private extension EditorDocument {
     unblockUserInteraction()
 
     if userInitiated {
-      bridge?.history.markContentClean()
+      markContentClean()
     }
+  }
+
+  func markContentClean() {
+    bridge?.history.markContentClean()
   }
 
   @objc func confirmsChanges(_ document: EditorDocument, shouldClose: Bool) {
@@ -637,8 +647,15 @@ private extension EditorDocument {
       // Reverted or no unsaved changes
       performClose()
     } else {
+      // Delay this for two reasons:
+      //  1. To make it clear to users that their changes are saved
+      //  2. To avoid leftover .sb copies when a document is closed too quickly
+      let closeDelayed = {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.4, execute: performClose)
+      }
+
       // Saved
-      document.saveContent(userInitiated: true, completion: performClose)
+      document.saveContent(userInitiated: true, completion: closeDelayed)
     }
   }
 }

@@ -122,6 +122,11 @@ extension EditorViewController: EditorModuleCoreDelegate {
   }
 
   func editorCoreEditorDidBecomeIdle(_ sender: EditorModuleCore) {
+    guard view.window != nil else {
+      // Fail fast since the editor is not available
+      return
+    }
+
     if document?.shouldSaveWhenIdle == true {
       document?.saveContent()
       bridge.history.markContentClean()
@@ -167,6 +172,9 @@ extension EditorViewController: EditorModuleCoreDelegate {
 
     // The content is edited once contentEdited is true, it cannot go back
     hasBeenEdited = hasBeenEdited || contentEdited
+    if contentEdited {
+      document?.isOutdated = true
+    }
 
     // Only update the dirty state when it's edited,
     // the app can launch with an unsaved state (e.g., force quit), it should remain dirty.

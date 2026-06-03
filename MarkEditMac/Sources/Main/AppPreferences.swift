@@ -414,7 +414,11 @@ enum ToolbarMode: Codable {
   case hidden
 }
 
-extension NSWindow.TabbingMode: @retroactive Codable {}
+#if compiler(>=6.0)
+  extension NSWindow.TabbingMode: @retroactive Codable {}
+#else
+  extension NSWindow.TabbingMode: Codable {}
+#endif
 
 // MARK: - Private
 

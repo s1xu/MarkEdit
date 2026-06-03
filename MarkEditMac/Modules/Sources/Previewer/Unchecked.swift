@@ -6,4 +6,8 @@
 
 import WebKit
 
-extension WKScriptMessage: @unchecked @retroactive Sendable {}
+#if compiler(>=6.0)
+  extension WKScriptMessage: @unchecked @retroactive Sendable {}
+#else
+  extension WKScriptMessage: @unchecked Sendable {}
+#endif

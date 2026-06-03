@@ -50,4 +50,8 @@ public extension [NSFileVersion] {
   }
 }
 
-extension NSFileVersion: @unchecked @retroactive Sendable {}
+#if compiler(>=6.0)
+  extension NSFileVersion: @unchecked @retroactive Sendable {}
+#else
+  extension NSFileVersion: @unchecked Sendable {}
+#endif

@@ -47,18 +47,7 @@ struct TextCompletionView: View {
                   ))
                 }
 
-                Text({
-                  var text = AttributedString(state.items[index])
-                  if !state.query.isEmpty, let range = text.range(of: state.query, options: .caseInsensitive) {
-                    text[range].font = .system(size: Constants.fontSize, weight: .medium)
-
-                    if index != state.selectedIndex {
-                      text[range].foregroundColor = .label
-                    }
-                  }
-
-                  return text
-                }())
+                Text(itemText(at: index))
                 .font(.system(size: Constants.fontSize))
                 .foregroundColor(index == state.selectedIndex ? .white : .label.opacity(0.75))
                 .padding([.leading, .trailing], Constants.itemPadding + (modernStyle ? 2 : 0))
@@ -104,6 +93,19 @@ struct TextCompletionView: View {
         }
       }
     }
+  }
+
+  private func itemText(at index: Int) -> AttributedString {
+    var text = AttributedString(state.items[index])
+    if !state.query.isEmpty, let range = text.range(of: state.query, options: .caseInsensitive) {
+      text[range].font = .system(size: Constants.fontSize, weight: .medium)
+
+      if index != state.selectedIndex {
+        text[range].foregroundColor = .label
+      }
+    }
+
+    return text
   }
 
   static func panelSize(itemCount: Int, preferredWidth: Double) -> CGSize {

@@ -208,15 +208,17 @@ final class EditorViewController: NSViewController {
     }
 
     // [macOS 15] Detect WritingTools visibility to work around issues
-    if #available(macOS 15.1, *) {
-      writingToolsObservation = webView.observe(\.isWritingToolsActive) { [weak self] _, _ in
-        guard let self else {
-          return
-        }
+    #if BUILD_WITH_SDK_26_OR_LATER
+      if #available(macOS 15.1, *) {
+        writingToolsObservation = webView.observe(\.isWritingToolsActive) { [weak self] _, _ in
+          guard let self else {
+            return
+          }
 
-        self.updateWritingTools(isActive: self.webView.isWritingToolsActive)
+          self.updateWritingTools(isActive: self.webView.isWritingToolsActive)
+        }
       }
-    }
+    #endif // BUILD_WITH_SDK_26_OR_LATER
 
     return webView
   }()

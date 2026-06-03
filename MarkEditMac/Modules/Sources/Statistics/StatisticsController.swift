@@ -102,7 +102,11 @@ public final class StatisticsController: NSViewController {
   }
 }
 
-extension ReadableContentPair: @unchecked @retroactive Sendable {}
+#if compiler(>=6.0)
+  extension ReadableContentPair: @unchecked @retroactive Sendable {}
+#else
+  extension ReadableContentPair: @unchecked Sendable {}
+#endif
 
 // MARK: - Private
 

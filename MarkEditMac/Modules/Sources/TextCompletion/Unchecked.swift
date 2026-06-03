@@ -6,4 +6,8 @@
 
 import Foundation
 
-extension KeyPath: @unchecked @retroactive Sendable {}
+#if compiler(>=6.0)
+  extension KeyPath: @unchecked @retroactive Sendable {}
+#else
+  extension KeyPath: @unchecked Sendable {}
+#endif

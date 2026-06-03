@@ -73,9 +73,9 @@ public extension NSColor {
   }
 
   @MainActor
-  func resolvedColor(with appearance: NSAppearance = NSApp.effectiveAppearance) -> NSColor {
+  func resolvedColor(with appearance: NSAppearance? = nil) -> NSColor {
     var cgColor: CGColor?
-    appearance.performAsCurrentDrawingAppearance {
+    (appearance ?? NSApp.effectiveAppearance).performAsCurrentDrawingAppearance {
       cgColor = self.cgColor
     }
 
