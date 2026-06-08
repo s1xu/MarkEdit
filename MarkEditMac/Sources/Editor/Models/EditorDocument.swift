@@ -105,42 +105,17 @@ final class EditorDocument: NSDocument {
     addWindowController(windowController)
   }
 
-  func waitUntilSaveCompleted(userInitiated: Bool = false, delay: TimeInterval = 0.6) async {
-    await withCheckedContinuation { continuation in
-      saveContent(userInitiated: userInitiated) {
-        continuation.resume()
-      }
-    }
-
-    // It takes sometime to actually save the document
-    await withCheckedContinuation { continuation in
-      DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
-        continuation.resume()
-      }
-    }
+  func waitUntilSaveCompleted(userInitiated: Bool = false) async {
+    try? await saveContent(userInitiated: userInitiated)
   }
 
   func saveContent(sender: Any? = nil, userInitiated: Bool = false, completion: (() -> Void)? = nil) {
     Task { @MainActor in
-      let saveAction = {
-        DispatchQueue.main.async {
-          super.save(sender)
-          completion?()
-        }
-
-        if sender != nil {
-          self.hostViewController?.cancelCompletion()
-        }
-      }
-
-      if isOutdated || (userInitiated && needsFormatting) {
-        updateContent(userInitiated: userInitiated, saveAction: saveAction)
-      } else {
-        saveAction()
-
-        if userInitiated {
-          markContentClean()
-        }
+      do {
+        try await saveContent(sender: sender, userInitiated: userInitiated)
+        completion?()
+      } catch {
+        presentError(error)
       }
     }
   }
@@ -219,13 +194,11 @@ extension EditorDocument {
     }()
 
     let canClose = {
-      DispatchQueue.main.asyncAfter(deadline: .now() + 0.02) {
-        super.canClose(
-          withDelegate: delegate,
-          shouldClose: shouldClose,
-          contextInfo: contextInfo
-        )
-      }
+      super.canClose(
+        withDelegate: delegate,
+        shouldClose: shouldClose,
+        contextInfo: contextInfo
+      )
     }
 
     // Closing a new document, force sync to make sure the content is propagated.
@@ -240,7 +213,24 @@ extension EditorDocument {
     // Case 1: The content isn't outdated, so auto-saving won't trigger.
     // Case 2: Occasionally, the ".sb" backup file isn't properly cleaned up.
     if (shouldSaveWhenIdle && isOutdated) || (!closeAlwaysConfirmsChanges && isDocumentEdited) {
-      return saveContent(completion: canClose)
+      Task { @MainActor in
+        do {
+          try await saveContent(userInitiated: false)
+          canClose()
+        } catch {
+          presentError(error)
+          if let shouldCloseSelector {
+            MarkEditDocumentClosing.notifyDelegate(
+              delegate,
+              selector: shouldCloseSelector,
+              document: self,
+              shouldClose: false,
+              contextInfo: contextInfo
+            )
+          }
+        }
+      }
+      return
     }
 
     // General cases
@@ -353,9 +343,7 @@ extension EditorDocument {
       return
     }
 
-    Task { @MainActor in
-      try await super.autosave(withImplicitCancellability: implicitlyCancellable)
-    }
+    try await super.autosave(withImplicitCancellability: implicitlyCancellable)
   }
 
   override func data(ofType typeName: String) throws -> Data {
@@ -597,6 +585,38 @@ private extension EditorDocument {
     }
 
     return AppPreferences.Assistant.insertFinalNewline || AppPreferences.Assistant.trimTrailingWhitespace
+  }
+
+  @MainActor
+  func saveContent(sender: Any? = nil, userInitiated: Bool = false) async throws {
+    if isOutdated || (userInitiated && needsFormatting) {
+      await updateContent(userInitiated: userInitiated)
+    }
+
+    defer {
+      if sender != nil {
+        hostViewController?.cancelCompletion()
+      }
+    }
+
+    guard let fileURL, let fileType else {
+      super.save(sender)
+      return
+    }
+
+    try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+      save(to: fileURL, ofType: fileType, for: .saveOperation) { error in
+        if let error {
+          continuation.resume(throwing: error)
+        } else {
+          continuation.resume()
+        }
+      }
+    }
+
+    if userInitiated {
+      markContentClean()
+    }
   }
 
   func updateContent(userInitiated: Bool = false) async {

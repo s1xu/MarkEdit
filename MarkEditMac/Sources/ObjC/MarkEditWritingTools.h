@@ -35,4 +35,14 @@ API_AVAILABLE(macos(15.1))
 
 @end
 
+@interface MarkEditDocumentClosing : NSObject
+
++ (void)notifyDelegate:(id)delegate
+              selector:(SEL)selector
+              document:(NSDocument *)document
+           shouldClose:(BOOL)shouldClose
+           contextInfo:(void *_Nullable)contextInfo;
+
+@end
+
 NS_ASSUME_NONNULL_END

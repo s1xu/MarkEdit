@@ -106,3 +106,20 @@
 }
 
 @end
+
+@implementation MarkEditDocumentClosing
+
++ (void)notifyDelegate:(id)delegate
+              selector:(SEL)selector
+              document:(NSDocument *)document
+           shouldClose:(BOOL)shouldClose
+           contextInfo:(void *)contextInfo {
+  if (![delegate respondsToSelector:selector]) {
+    return;
+  }
+
+  void (*send)(id, SEL, NSDocument *, BOOL, void *) = (void *)[delegate methodForSelector:selector];
+  send(delegate, selector, document, shouldClose, contextInfo);
+}
+
+@end
