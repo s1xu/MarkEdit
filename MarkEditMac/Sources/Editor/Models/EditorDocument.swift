@@ -115,7 +115,9 @@ final class EditorDocument: NSDocument {
         try await saveContent(sender: sender, userInitiated: userInitiated)
         completion?()
       } catch {
-        presentError(error)
+        if !isUserCancelled(error) {
+          presentError(error)
+        }
       }
     }
   }
@@ -218,7 +220,10 @@ extension EditorDocument {
           try await saveContent(userInitiated: false)
           canClose()
         } catch {
-          presentError(error)
+          if !isUserCancelled(error) {
+            presentError(error)
+          }
+
           if let shouldCloseSelector {
             MarkEditDocumentClosing.notifyDelegate(
               delegate,
@@ -600,7 +605,7 @@ private extension EditorDocument {
     }
 
     guard let fileURL, let fileType else {
-      super.save(sender)
+      try saveNewDocument()
       return
     }
 
@@ -617,6 +622,26 @@ private extension EditorDocument {
     if userInitiated {
       markContentClean()
     }
+  }
+
+  @MainActor
+  func saveNewDocument() throws {
+    let savePanel = NSSavePanel()
+    savePanel.nameFieldStringValue = displayName ?? ""
+    savePanel.isExtensionHidden = false
+
+    guard prepareSavePanel(savePanel), savePanel.runModal() == .OK, let url = savePanel.url else {
+      throw CocoaError(.userCancelled)
+    }
+
+    let typeName = writableType(for: url)
+    try writeSafely(to: url, ofType: typeName, for: .saveOperation)
+
+    fileType = typeName
+    fileURL = url
+    fileModificationDate = fileModificationDate(for: url)
+    markContentDirty(false)
+    NSDocumentController.shared.noteNewRecentDocumentURL(url)
   }
 
   func updateContent(userInitiated: Bool = false) async {
@@ -653,6 +678,25 @@ private extension EditorDocument {
 
   func markContentClean() {
     bridge?.history.markContentClean()
+  }
+
+  func writableType(for url: URL) -> String {
+    let pathExtension = url.pathExtension.lowercased()
+
+    if textBundle != nil && pathExtension == "textbundle" {
+      return "org.textbundle.package"
+    }
+
+    return (NewFilenameExtension(rawValue: pathExtension) ?? AppPreferences.General.newFilenameExtension).exportedType
+  }
+
+  func fileModificationDate(for url: URL) -> Date {
+    let attributes = try? FileManager.default.attributesOfItem(atPath: url.path)
+    return (attributes?[.modificationDate] as? Date) ?? .now
+  }
+
+  func isUserCancelled(_ error: Error) -> Bool {
+    (error as? CocoaError)?.code == .userCancelled
   }
 
   @objc func confirmsChanges(_ document: EditorDocument, shouldClose: Bool) {
