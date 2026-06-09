@@ -106,13 +106,13 @@ final class EditorDocument: NSDocument {
   }
 
   func waitUntilSaveCompleted(userInitiated: Bool = false) async {
-    try? await saveContent(userInitiated: userInitiated)
+    try? await saveContentDirectly(userInitiated: userInitiated)
   }
 
   func saveContent(sender: Any? = nil, userInitiated: Bool = false, completion: (() -> Void)? = nil) {
     Task { @MainActor in
       do {
-        try await saveContent(sender: sender, userInitiated: userInitiated)
+        try await saveContentDirectly(sender: sender, userInitiated: userInitiated)
         completion?()
       } catch {
         if !isUserCancelled(error) {
@@ -207,7 +207,14 @@ extension EditorDocument {
     //
     // Don't use `isDraft` here because it's false when closing a document with no files on disk.
     if isNewFile {
-      return updateContent(saveAction: canClose)
+      Task { @MainActor in
+        await canCloseNewDocument(
+          delegate: delegate,
+          shouldClose: shouldCloseSelector,
+          contextInfo: contextInfo
+        )
+      }
+      return
     }
 
     // Explicitly save the content before closing.
@@ -217,7 +224,7 @@ extension EditorDocument {
     if (shouldSaveWhenIdle && isOutdated) || (!closeAlwaysConfirmsChanges && isDocumentEdited) {
       Task { @MainActor in
         do {
-          try await saveContent(userInitiated: false)
+          try await saveContentDirectly(userInitiated: false)
           canClose()
         } catch {
           if !isUserCancelled(error) {
@@ -593,7 +600,7 @@ private extension EditorDocument {
   }
 
   @MainActor
-  func saveContent(sender: Any? = nil, userInitiated: Bool = false) async throws {
+  func saveContentDirectly(sender: Any? = nil, userInitiated: Bool = false) async throws {
     if isOutdated || (userInitiated && needsFormatting) {
       await updateContent(userInitiated: userInitiated)
     }
@@ -697,6 +704,55 @@ private extension EditorDocument {
 
   func isUserCancelled(_ error: Error) -> Bool {
     (error as? CocoaError)?.code == .userCancelled
+  }
+
+  @MainActor
+  func canCloseNewDocument(delegate: Any, shouldClose shouldCloseSelector: Selector?, contextInfo: UnsafeMutableRawPointer?) async {
+    await updateContent(userInitiated: false)
+
+    guard isDocumentEdited else {
+      notifyDelegate(delegate, shouldCloseSelector, contextInfo, shouldClose: true)
+      return
+    }
+
+    let alert = NSAlert()
+    alert.messageText = "是否要保存对此文稿所做的更改？"
+    alert.informativeText = "如果不保存，您的更改将会丢失。"
+    alert.addButton(withTitle: "保存")
+    alert.addButton(withTitle: "删除")
+    alert.addButton(withTitle: "取消")
+
+    switch alert.runModal() {
+    case .alertFirstButtonReturn:
+      do {
+        try await saveContentDirectly(userInitiated: true)
+        notifyDelegate(delegate, shouldCloseSelector, contextInfo, shouldClose: true)
+      } catch {
+        if !isUserCancelled(error) {
+          presentError(error)
+        }
+
+        notifyDelegate(delegate, shouldCloseSelector, contextInfo, shouldClose: false)
+      }
+    case .alertSecondButtonReturn:
+      notifyDelegate(delegate, shouldCloseSelector, contextInfo, shouldClose: true)
+    default:
+      notifyDelegate(delegate, shouldCloseSelector, contextInfo, shouldClose: false)
+    }
+  }
+
+  func notifyDelegate(_ delegate: Any, _ selector: Selector?, _ contextInfo: UnsafeMutableRawPointer?, shouldClose: Bool) {
+    guard let selector else {
+      return
+    }
+
+    MarkEditDocumentClosing.notifyDelegate(
+      delegate,
+      selector: selector,
+      document: self,
+      shouldClose: shouldClose,
+      contextInfo: contextInfo
+    )
   }
 
   @objc func confirmsChanges(_ document: EditorDocument, shouldClose: Bool) {
