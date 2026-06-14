@@ -634,21 +634,24 @@ private extension EditorDocument {
   @MainActor
   func saveNewDocument() throws {
     let savePanel = NSSavePanel()
-    savePanel.nameFieldStringValue = displayName ?? ""
+    let filename = displayName ?? ""
+    let filenameExtension = AppPreferences.General.newFilenameExtension.rawValue
+    savePanel.nameFieldStringValue = URL(fileURLWithPath: filename).pathExtension.isEmpty ? "\(filename).\(filenameExtension)" : filename
     savePanel.isExtensionHidden = false
 
     guard prepareSavePanel(savePanel), savePanel.runModal() == .OK, let url = savePanel.url else {
       throw CocoaError(.userCancelled)
     }
 
-    let typeName = writableType(for: url)
-    try writeSafely(to: url, ofType: typeName, for: .saveOperation)
+    let fileURL = url.pathExtension.isEmpty ? url.appendingPathExtension(filenameExtension) : url
+    let typeName = writableType(for: fileURL)
+    try writeSafely(to: fileURL, ofType: typeName, for: .saveOperation)
 
     fileType = typeName
-    fileURL = url
-    fileModificationDate = fileModificationDate(for: url)
+    self.fileURL = fileURL
+    fileModificationDate = fileModificationDate(for: fileURL)
     markContentDirty(false)
-    NSDocumentController.shared.noteNewRecentDocumentURL(url)
+    NSDocumentController.shared.noteNewRecentDocumentURL(fileURL)
   }
 
   func updateContent(userInitiated: Bool = false) async {
